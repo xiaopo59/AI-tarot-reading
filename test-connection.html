@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>连通性测试</title>
+<style>
+  body {
+    margin: 0; padding: 28px 20px;
+    background: #0b0c14; color: #e8e6f0;
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.75;
+  }
+  .ok { color: #4ad991; font-size: 30px; font-weight: 700; }
+  .box {
+    background: #161927; border: 1px solid #2a2f45; border-left: 3px solid #4ad991;
+    border-radius: 10px; padding: 18px 20px; margin: 22px 0;
+  }
+  h2 { font-size: 16px; margin: 26px 0 10px; color: #e0c060; }
+  code { background: #12141f; padding: 2px 7px; border-radius: 5px; font-size: 13px; }
+  ul { padding-left: 22px; margin: 8px 0; font-size: 14px; }
+  li { margin: 5px 0; }
+  .dim { color: #9a9cb0; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="ok">✓ 能连上</div>
+
+<div class="box">
+  说明手机和电脑之间的网络是通的，<strong>服务没问题</strong>。<br>
+  <span class="dim">如果这一页能打开，但塔罗页面打不开，问题在浏览器或脚本那一层。</span>
+</div>
+
+<h2>接着测这三样</h2>
+<ul>
+  <li><a href="index.html">打开塔罗页面</a>（完整页面）</li>
+  <li><a href="styles.css">打开 styles.css</a>（样式文件）</li>
+  <li><a href="js/render.js">打开 js/render.js</a>（脚本文件）</li>
+</ul>
+
+<h2>这一页的作用</h2>
+<p class="dim">
+  它<strong>不含任何 JavaScript</strong>，也不依赖外部文件。<br>
+  所以它能不能打开，只取决于「手机能不能访问到这台电脑」，与页面本身无关。
+</p>
+
+</body>
+</html>

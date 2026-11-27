@@ -1,0 +1,1569 @@
+/* ============================================================
+   塔罗牌抽牌与 AI 解读 —— 样式
+   深色主题，零外部依赖（不引字体、不引图标库），file:// 直接可用。
+   ============================================================ */
+
+:root {
+  --bg: #0b0c14;
+  --bg-soft: #12141f;
+  --bg-panel: #161927;
+  --bg-raise: #1e2233;
+  --line: #2a2f45;
+  --line-soft: #222639;
+  --text: #e8e6f0;
+  --text-dim: #9a9cb0;
+  --text-faint: #6c6f85;
+  --gold: #c9a227;
+  --gold-soft: #e0c060;
+  --violet: #6c5ce7;
+  --violet-soft: #8b7cf0;
+  --ok: #4ad991;
+  --warn: #f0b429;
+  --bad: #f05252;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  --card-w: 104px;
+  --card-h: 166px;
+  /*
+   * 牌位名的宽度与字号。
+   *
+   * 这几个变量由 render.js 的 applyMetrics 写入（那里是尺寸的唯一来源），
+   * 这里给的值是桌面默认值，同时也是「JS 没跑起来时」的兜底。
+   *
+   * 为什么牌位名宽度也要跟着缩：它比牌面宽（120 vs 104），手机上一张牌
+   * 只有 56px 宽，如果牌位名还是 120px，相邻两张的牌位名就会互相压住——
+   * 补 15 张的排版测试就是这么抓到这个问题的。
+   */
+  --caption-w: 120px;
+  --card-title: 13px;
+  --card-glyph: 26px;
+  --card-num: 10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Source Han Sans SC",
+               system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+body {
+  /*
+   * 系统栏安全区。
+   *
+   * Android 壳把系统栏做成透明、让背景铺满整屏（见 MainActivity.onCreate 的
+   * 注释），代价是内容会钻到状态栏和底部手势条下面，所以两边要留出等高的
+   * 空白。那个高度由壳在页面加载完成后量出来注入（injectSafeArea）。
+   *
+   * 两个变量没定义时回落到 env()，再回落到 0——桌面浏览器两条都不生效，
+   * padding 就是 0，跟改动之前完全一样。
+   *
+   * 写在这层而不是给每个面板加 margin：背景色和背景图本来就在 body 上，
+   * padding 区域会被背景覆盖，视觉上还是连成一片；换成 margin 的话四周
+   * 会露出 html 的底色。
+   */
+  padding-top: var(--inset-top, env(safe-area-inset-top, 0px));
+  padding-bottom: var(--inset-bottom, env(safe-area-inset-bottom, 0px));
+
+  background-image:
+    radial-gradient(1100px 500px at 12% -8%, rgba(108, 92, 231, .16), transparent 60%),
+    radial-gradient(900px 420px at 92% 4%, rgba(201, 162, 39, .10), transparent 62%);
+  background-attachment: fixed;
+}
+
+/*
+ * [hidden] 必须真的隐藏。
+ *
+ * 这不是多余的保险，而是修一个曾经让整个页面不可用的 bug：
+ * 浏览器自带的 [hidden] { display: none } 是**属性选择器**，特异性 (0,1,0)；
+ * 而下面 .modal 里的 display: grid 是**类选择器**，特异性同为 (0,1,0) 但
+ * 出现在作者样式表里，直接把它覆盖掉了。
+ *
+ * 后果是三个弹窗在页面打开时就全部可见，position: fixed; inset: 0 铺满视口
+ * 叠在一起，把所有按钮都挡在下面——表现就是「点什么都没反应」。
+ *
+ * 加了 !important 之后，任何给元素设 display 的规则都不会再让 [hidden] 失效。
+ */
+[hidden] { display: none !important; }
+
+code {
+  font-family: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  font-size: .88em;
+  background: rgba(108, 92, 231, .16);
+  border: 1px solid rgba(108, 92, 231, .28);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: #cfc6ff;
+}
+
+/* ---------------- 问题质量提示 ---------------- */
+
+.question-quality {
+  margin: -6px 0 16px;
+  padding: 9px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  line-height: 1.7;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text-dim);
+}
+.question-quality.is-thin {
+  border-color: rgba(240, 180, 41, .35);
+  background: rgba(240, 180, 41, .07);
+  color: #f5d491;
+}
+.question-quality.is-rich {
+  border-color: rgba(74, 217, 145, .3);
+  background: rgba(74, 217, 145, .06);
+  color: #b8e8cf;
+}
+/* 开放问题：用中性的紫色，不黄不绿——它既不是「有问题」也不是「很好」，
+   只是一种正当的问法，说明一下会怎么读就行。 */
+.question-quality.is-open {
+  border-color: rgba(108, 92, 231, .35);
+  background: rgba(108, 92, 231, .07);
+  color: #cfc6ff;
+}
+.question-quality strong { color: inherit; font-weight: 600; }
+.question-quality .qq-terms {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  /* inline-flex 紧跟在前文后面，不留间距就会和「解读会围绕这些点展开：」粘在一起 */
+  margin: 5px 0 0 4px;
+  vertical-align: middle;
+}
+.question-quality .qq-terms span {
+  font-size: 11.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, .16);
+  border: 1px solid rgba(108, 92, 231, .3);
+  color: #cfc6ff;
+}
+
+/* ---------------- 贴合度 ---------------- */
+
+.fit-banner {
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.75;
+  border: 1px solid var(--line-soft);
+}
+.fit-banner.is-good {
+  border-color: rgba(74, 217, 145, .3);
+  background: rgba(74, 217, 145, .07);
+}
+.fit-banner.is-fair {
+  border-color: rgba(240, 180, 41, .32);
+  background: rgba(240, 180, 41, .07);
+}
+.fit-banner.is-poor {
+  border-color: rgba(240, 82, 82, .4);
+  background: rgba(240, 82, 82, .09);
+}
+
+/* 开放问题：没有分数可显示，用中性紫。
+   后面还会跟一个 is-good / is-fair / is-poor 说明「有没有写成事件预告」，
+   所以这一条只负责底色，颜色深浅交给后两条。 */
+.fit-banner.is-open {
+  border-color: rgba(108, 92, 231, .35);
+  background: rgba(108, 92, 231, .07);
+}
+.fit-banner.is-open.is-fair {
+  border-color: rgba(240, 180, 41, .32);
+  background: rgba(240, 180, 41, .06);
+}
+.fit-banner.is-open.is-poor {
+  border-color: rgba(240, 82, 82, .38);
+  background: rgba(240, 82, 82, .07);
+}
+.fit-banner.is-open .fit-label { color: #cfc6ff; }
+.fit-banner .fit-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.fit-banner .fit-score {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.fit-banner.is-good .fit-score { color: var(--ok); }
+.fit-banner.is-fair .fit-score { color: var(--warn); }
+.fit-banner.is-poor .fit-score { color: var(--bad); }
+.fit-banner .fit-label { color: var(--text); font-weight: 600; }
+.fit-banner .fit-detail { color: var(--text-dim); }
+.fit-banner .fit-actions { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* 问题贴合度不足的牌位 */
+.card-reading.is-loose {
+  border-color: rgba(240, 180, 41, .4);
+  background: rgba(240, 180, 41, .05);
+}
+.loose-tag {
+  font-size: 10.5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(240, 180, 41, .16);
+  border: 1px solid rgba(240, 180, 41, .42);
+  color: var(--warn);
+  white-space: nowrap;
+}
+
+/* ---------------- 扇形选牌 ---------------- */
+
+.panel-fan { border-color: rgba(201, 162, 39, .28); }
+
+.fan-prompt {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--gold-soft);
+  line-height: 1.7;
+}
+
+.fan-picked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.fan-picked:empty { display: none; }
+
+.picked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  padding: 3px 11px 3px 5px;
+  border-radius: 999px;
+  background: rgba(201, 162, 39, .1);
+  border: 1px solid rgba(201, 162, 39, .32);
+  color: var(--text);
+}
+.pc-index {
+  display: grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(201, 162, 39, .28);
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff3cf;
+}
+
+.fan-wrap {
+  position: relative;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(700px 320px at 50% 115%, rgba(108, 92, 231, .2), transparent 70%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, .012) 0 12px, transparent 12px 24px),
+    #0e1019;
+  border: 1px solid var(--line-soft);
+  /*
+   * 不横向滚动。
+   *
+   * 这里原本是 overflow-x: auto，因为待挑的牌一度排成一条超出屏宽的扇形。
+   * 现在改成网格、宽度由 render.js 按容器算好，横向滚动已经没必要——
+   * 留着反而让牌区能被左右拖动，看着像没对齐（用户反馈「不要让牌可以左右移动」）。
+   */
+  overflow: hidden;
+  padding: 10px 0 4px;
+}
+
+.fan-surface { position: relative; width: 100%; margin: 0 auto; }
+
+/*
+ * 待挑的牌。
+ *
+ * 用 left/top 绝对定位，但**不重叠**——每张完整可见，按网格排开。
+ *
+ * 早先这里是弧形+重叠的扇形，靠「每张露出 22px」营造抹开的牌堆感。
+ * 那个设计在手机上不成立：牌面只有几十像素宽，重叠后根本分不清哪张是哪张，
+ * 点起来也全靠猜。改成网格之后，每张牌边界清楚，点哪张就是哪张。
+ *
+ * 尺寸由 --fan-card-w / --fan-card-h 给（render.js 的 applyMetrics 写入），
+ * 不再是写死的 84×134——写死会让「JS 按小尺寸算位置、CSS 按大尺寸画牌」，
+ * 于是所有牌叠在一起，这正是之前的 bug。
+ */
+.fan-card {
+  position: absolute;
+  width: var(--fan-card-w, 84px);
+  height: var(--fan-card-h, 134px);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: transform .16s ease, filter .16s ease;
+}
+
+.fan-back {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(201, 162, 39, .42);
+  background:
+    repeating-linear-gradient(45deg, rgba(201, 162, 39, .18) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(-45deg, rgba(108, 92, 231, .26) 0 2px, transparent 2px 7px),
+    linear-gradient(150deg, #262056, #131427);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .5);
+  transition: box-shadow .16s ease, border-color .16s ease;
+}
+
+.fan-glyph {
+  font-size: 17px;
+  color: rgba(224, 192, 96, .5);
+  pointer-events: none;
+}
+
+/* 悬停/聚焦：抬起 + 描边，明确「这张可以点」。不再放大——网格里放大容易碰到邻牌 */
+.fan-card:hover,
+.fan-card:focus-visible {
+  transform: translateY(-4px);
+  z-index: 900 !important;
+  outline: none;
+}
+.fan-card:hover .fan-back,
+.fan-card:focus-visible .fan-back {
+  border-color: var(--gold);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .6), 0 0 0 2px rgba(201, 162, 39, .5);
+}
+.fan-card:active { transform: translateY(-1px); }
+
+.fan-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.fan-actions .field-hint { flex: 1; min-width: 180px; margin: 0; }
+
+/* ---------------- 顶栏 ---------------- */
+
+/*
+ * 顶栏**不悬浮**。
+ *
+ * 这里试过两版，都不行：
+ *   1. position: sticky —— 它一直浮在内容上方，手机上占 70 多像素，
+ *      待挑牌区一滚就从它下面过去，被盖住一大截。
+ *   2. sticky + 随滚动方向收起 —— 解决了静止时的遮挡，但快速滑动时
+ *      折叠动画追不上滚动位置，牌还是会露到顶栏上面去。
+ *
+ * 所以回到最朴素的：它就是一屏普通内容，往下滚就跟着滚走。
+ * 一旦滚走就绝不会盖住任何东西，也不存在「动画跟不跟得上」的问题。
+ *
+ * 代价：想点「历史记录 / 接口设置」要先滚回页面顶部。对一屏就到底的
+ * 内容来说这是可以接受的——而且比「内容被永久盖住一条」划算得多。
+ */
+.topbar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 24px;
+  /*
+   * 这里刻意没有背景色、没有 border-bottom、没有 backdrop-filter。
+   *
+   * 这三样是顶栏还悬浮着的时候留下的：那时候它固定压在内容上方，必须用
+   * 半透明底 + 模糊把滚过去的内容糊掉，再用一条底线跟正文分开。
+   *
+   * 现在顶栏回到文档流里（见上面 position: relative 的说明），已经不压在
+   * 任何东西上面了——半透明底只会让顶栏和页面背景之间出现一条能看出来的
+   * 色块，模糊没有东西可糊，底线则把本来连续的一张背景切成两段。
+   * 尤其是全屏沉浸之后，状态栏那块露出的正是 body 背景，顶栏一旦自带
+   * 底色，两者拼接处就是一道横向的分辨色块。
+   */
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--violet), #3c2f8f);
+  color: var(--gold-soft);
+  font-size: 20px;
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, .35), 0 6px 18px rgba(108, 92, 231, .35);
+}
+
+.brand-text h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: .3px; }
+.brand-text p { margin: 2px 0 0; font-size: 12px; color: var(--text-faint); }
+
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.rng-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  background: var(--bg-soft);
+  white-space: nowrap;
+}
+.rng-badge.is-ok { color: var(--ok); border-color: rgba(74, 217, 145, .4); background: rgba(74, 217, 145, .08); }
+.rng-badge.is-bad { color: var(--bad); border-color: rgba(240, 82, 82, .45); background: rgba(240, 82, 82, .1); }
+
+/* ---------------- 按钮 ---------------- */
+
+.btn {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-raise);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .08s, opacity .15s;
+}
+.btn:hover:not(:disabled) { background: #262b40; border-color: #3a4160; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .42; cursor: not-allowed; }
+
+.btn-primary {
+  background: linear-gradient(135deg, #5b4bd6, #7d4fd0);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(108, 92, 231, .32);
+}
+.btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #6857e8, #8c5ce0); }
+
+.btn-ghost { background: transparent; }
+.btn-ghost:hover:not(:disabled) { background: var(--bg-raise); }
+
+.btn-danger-ghost { background: transparent; border-color: rgba(240, 82, 82, .4); color: #ff8b8b; }
+.btn-danger-ghost:hover:not(:disabled) { background: rgba(240, 82, 82, .12); }
+
+.btn-draw { display: inline-flex; align-items: center; gap: 9px; padding: 12px 26px; font-size: 15px; }
+.draw-icon { font-size: 15px; transition: transform .6s ease; }
+.btn-draw.is-shuffling .draw-icon { animation: spin 1s linear infinite; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------------- 布局 ---------------- */
+
+.layout {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+  /*
+   * 跳转到某个面板时留一点上边距。
+   *
+   * 顶栏不悬浮了（见 .topbar 的说明），所以不需要留出它的整条高度；
+   * 留一点点只是为了让面板标题不至于紧贴视口上沿。
+   */
+  scroll-margin-top: 12px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.panel-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gold-soft);
+  letter-spacing: .4px;
+}
+.panel-sub { font-size: 12.5px; color: var(--text-faint); }
+
+/* ---------------- 表单 ---------------- */
+
+.field { display: block; margin-bottom: 16px; }
+.field-label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+.field-hint { display: block; font-size: 12px; color: var(--text-faint); margin-top: 6px; line-height: 1.6; }
+
+/* 勾选行：勾选框和说明文字排在同一行，跟上面那些整行输入框是不同的排法 */
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.check-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: none;
+  cursor: pointer;
+  accent-color: var(--violet);
+}
+
+textarea, input[type="text"], input[type="password"], input[type="number"], select {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  resize: vertical;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+/*
+ * 触摸设备上表单控件必须 ≥16px。
+ *
+ * iOS Safari 有一条规则：聚焦到 font-size 小于 16px 的输入框时，它会自动把
+ * **整个页面**放大（约 1.14 倍）并且保持放大状态。这个页面在手机上输入问题
+ * 是主流程，也就是说每个 iPhone 用户都会踩到。
+ *
+ * 放大之后还有连锁反应：弹窗的 width: calc(100vw - 20px) 是按布局视口算的，
+ * 于是弹窗右侧（含「保存」按钮）被推到屏幕外，要横向拖动才够得到。
+ *
+ * 用 (pointer: coarse) 而不是宽度断点——iPad 横屏宽度超过 640px，
+ * 按宽度判断会漏掉它，而它同样是触摸设备、同样会触发自动放大。
+ */
+@media (pointer: coarse) {
+  textarea, input[type="text"], input[type="password"], input[type="number"], select {
+    font-size: 16px;
+  }
+}
+textarea:focus, input:focus, select:focus {
+  outline: none;
+  border-color: var(--violet);
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, .18);
+}
+textarea::placeholder, input::placeholder { color: #5b5e73; }
+
+/* ---------------- 示例问题 ---------------- */
+
+.examples { margin: 0 0 18px; }
+.examples-label { font-size: 12.5px; color: var(--text-faint); display: block; margin-bottom: 8px; }
+.example-list { display: flex; flex-wrap: wrap; gap: 7px; }
+
+.example-chip {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all .15s;
+}
+.example-chip:hover { border-color: var(--violet); color: #cfc6ff; background: rgba(108, 92, 231, .12); }
+
+/* ---------------- 抽牌按钮区 ---------------- */
+
+/*
+ * 与上面的牌库选择之间要留出间距。
+ *
+ * 踩过一次：.deck-row 没有下边距、.draw-row 也没有上边距，两者直接贴在一起——
+ * 「牌库」那排小按钮和「洗牌」主按钮之间连一条缝都没有，看起来像同一组控件。
+ */
+.draw-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.draw-note {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.7;
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+}
+
+/* ---------------- 牌阵选择 ---------------- */
+
+.spread-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 10px;
+  /* 牌阵列表上方紧挨着「当前：…」那行副标题，它只有 margin-top，
+     这里补下边距，否则副标题和卡片会贴在一起——实测间距是 0。 */
+  margin-bottom: 18px;
+}
+
+.spread-card {
+  text-align: left;
+  font: inherit;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+}
+.spread-card:hover { border-color: #3d4463; background: var(--bg-raise); }
+.spread-card.is-active {
+  border-color: var(--violet);
+  background: rgba(108, 92, 231, .14);
+  box-shadow: inset 0 0 0 1px rgba(108, 92, 231, .4);
+}
+.spread-card .sc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.spread-card .sc-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.spread-card .sc-count {
+  font-size: 11px;
+  color: var(--gold-soft);
+  border: 1px solid rgba(201, 162, 39, .35);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.spread-card .sc-sub { display: block; font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.spread-card .sc-blurb { display: block; font-size: 12px; color: var(--text-faint); margin-top: 6px; line-height: 1.55; }
+
+.deck-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.deck-options { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.deck-chip {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all .15s;
+}
+.deck-chip:hover { border-color: #3d4463; }
+.deck-chip.is-active { border-color: var(--gold); color: var(--gold-soft); background: rgba(201, 162, 39, .12); }
+
+/* ---------------- 牌桌 ---------------- */
+
+.table-wrap {
+  position: relative;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(620px 340px at 50% 40%, rgba(108, 92, 231, .13), transparent 72%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, .012) 0 12px, transparent 12px 24px),
+    #0e1019;
+  border: 1px solid var(--line-soft);
+  /*
+   * 不横向滚动。牌桌宽度由 render.js 按容器算好（见 measureAvailableWidth），
+   * 内容保证放得下，所以不需要滚动容器——留着只会让牌桌能被左右拖动。
+   */
+  overflow: hidden;
+}
+
+/*
+ * 牌桌画布。宽度和高度都由 render.js 的 tableSize 现算并写到行内样式上，
+ * 这里**不能**再写 min-width。
+ *
+ * 这里曾经写死 min-width: 880px，手机上就出事了：牌桌被强制拉到 880px 宽，
+ * 而牌位是按实际桌宽（约 366px）定位的，于是牌全挤在左半边，右半边是空的。
+ * 用户看到的是「一片空白 + 要横向滚」，结论自然是「抽完不显示牌面」。
+ */
+.table-surface { position: relative; }
+
+/* 牌位容器：以牌的中心点定位 */
+.slot {
+  position: absolute;
+  width: var(--card-w);
+  height: var(--card-h);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+/*
+ * 抽牌时的入场动画：轻微上浮 + 淡入。
+ *
+ * 原来是一个 3D 翻转（rotateY 90° → 0°，配 perspective 和 preserve-3d），
+ * 手机上看着别扭——透视依赖容器尺寸和视口，牌又小，翻起来的形变很怪。
+ * 换成纯 2D 的上浮淡入，简单、稳定，任何尺寸下都不走样。
+ *
+ * 动画挂在 .card-front 上而不是 .card-flip 上，因为 .card-front 的 animation
+ * 会覆盖它的静态 transform——逆位要用的 rotate(180deg) 在 .cf-inner 上，
+ * 两者不冲突。挂到 .card-flip 上的话就会和逆位那条打架（那是踩过的坑）。
+ */
+.slot-inner { width: 100%; height: 100%; }
+
+.card-flip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.card-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* 牌背。入场时直接淡出，把位置让给牌面 */
+.card-back {
+  background:
+    repeating-linear-gradient(45deg, rgba(201, 162, 39, .22) 0 2px, transparent 2px 7px),
+    repeating-linear-gradient(-45deg, rgba(108, 92, 231, .28) 0 2px, transparent 2px 7px),
+    linear-gradient(150deg, #241f4a, #131427);
+  border: 1px solid rgba(201, 162, 39, .4);
+  display: grid;
+  place-items: center;
+  animation: back-gone .32s ease-out forwards;
+  animation-delay: var(--delay, 0ms);
+}
+.card-back::after {
+  content: "✦";
+  font-size: 22px;
+  color: rgba(224, 192, 96, .55);
+}
+@keyframes back-gone {
+  from { opacity: 1; }
+  to { opacity: 0; visibility: hidden; }
+}
+
+/* 牌面 */
+.card-front {
+  background: linear-gradient(168deg, #fdfbf4 0%, #f3efe2 55%, #e8e2d0 100%);
+  border: 1px solid #cfc7ad;
+  color: #1d1b26;
+  padding: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+  animation: card-in .34s ease-out backwards;
+  animation-delay: var(--delay, 0ms);
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/*
+ * 牌面的内容区。
+ *
+ * 单独套一层是为了让逆位能「整块转过去」——见下面 .is-reversed 的说明。
+ * 内边距放在这里而不是 .card-front 上，旋转时留白跟着一起转。
+ *
+ * 内边距由 --card-pad-y 给（render.js 按牌宽算并写入）。写死像素在手机上
+ * 会显得太薄——牌只有 89px 高时，7px 的边距让文字几乎贴着边框。
+ */
+.cf-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--card-pad-y, 8px) var(--card-pad-x, 6px);
+  text-align: center;
+}
+
+/*
+ * 牌面上的五段文字。
+ *
+ * 字号全部走 CSS 变量（由 render.js 按牌宽算并写入）。写死像素在手机上会失控：
+ * 牌宽只有 56px、内容可用宽 44px，而 8.5px 的英文名 "Knight of Pentacles"
+ * 放不下一行就折成三行，把内容撑到 85px——比整张牌（89px，去掉内边距
+ * 只剩 73px）还高。78 张牌里有 67 张会溢出，表现就是文字叠在一起。
+ *
+ * 每一段都要写明确的 line-height。不写会继承 body 的 1.65——那是给正文段落
+ * 定的，套在牌面小字上会让文字框比实际高度大出一倍多，同样把内容往两头挤。
+ */
+.cf-num {
+  font-size: var(--card-num);
+  line-height: 1.2;
+  letter-spacing: 1px;
+  color: #8a7f5f;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.cf-glyph { font-size: var(--card-glyph); line-height: 1.1; margin: 2px 0 1px; }
+.cf-name { font-size: var(--card-title); font-weight: 700; line-height: 1.25; letter-spacing: .2px; }
+/*
+ * 英文名最多占两行。
+ *
+ * 它是唯一长度不可控的一段（"Knight of Pentacles" 这类），留个上限兜底：
+ * 万一某个字号下还是放不下，就裁掉而不是把整张牌的内容顶出去。
+ */
+.cf-en {
+  font-size: var(--card-en);
+  color: #7d7565;
+  margin-top: 2px;
+  line-height: 1.2;
+  max-height: calc(var(--card-en) * 1.2 * 2 + 1px);
+  overflow: hidden;
+}
+.cf-suit {
+  margin-top: auto;
+  font-size: var(--card-suit);
+  line-height: 1.2;
+  color: #8a7f5f;
+  letter-spacing: 1px;
+}
+
+/*
+ * 逆位：转牌面内容那一层。
+ *
+ * 只转**一层**就够了，这一点很要紧。早先这里有两条 rotate(180deg)：
+ *   .is-reversed .card-flip   { transform: rotate(180deg); }
+ *   .slot.is-reversed .cf-inner { transform: rotate(180deg); }
+ * 它们叠在同一张牌上，180 + 180 = 360——等于没转。表现是标着「逆位」的牌
+ * 显示成正常的样子（用户截图里位置 3、6、9 就是这样）。
+ *
+ * 现在统一走这一条。转整块而不是逐个文字元素：逐个转会让每个字自己头朝下，
+ * 而 flex 里的排列顺序不变，那是个四不像。
+ */
+.slot.is-reversed .cf-inner { transform: rotate(180deg); }
+
+/* 牌下方的牌位名与朝向标签（始终正向）。
+   top 用 100% 而不是 calc(卡片高 + 6px)：牌位容器本身就是牌的大小，
+   100% 正好紧贴牌的下边缘。 */
+.slot-caption {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  /* 由 render.js 按牌宽算出，窄屏跟着缩——写死 120px 会让相邻牌位名互相压住 */
+  width: var(--caption-w);
+  /*
+   * 与牌之间留出可见的空隙。
+   *
+   * 原来是 5px，牌位名和朝向标签几乎贴在牌的边框上（用户反馈「两个字都快贴到
+   * 牌的边框上了」）。改 10px——手机上牌只有 89px 高，这点距离看着才像分开的两块。
+   */
+  padding-top: 10px;
+  text-align: center;
+  pointer-events: none;
+}
+.slot-pos {
+  display: block;
+  font-size: var(--caption-font, 11px);
+  line-height: 1.35;
+  color: var(--gold-soft);
+  letter-spacing: .3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/*
+ * 朝向标签是带边框和底色的独立块。
+ *
+ * 它和上面的牌位名之间**必须留出可见的间距**。原来只有 2px，两个框看起来
+ * 是叠在一起的——用户就是这么反馈的（「这里的框叠在一起了」）。
+ * 现在拉开到 6px，两个块各自独立可辨。
+ */
+.slot-orient {
+  display: inline-block;
+  font-size: var(--orient-font, 9.5px);
+  line-height: 1.4;
+  /* 和上面的牌位名拉开——原来 2px，两个带边框的块看起来是叠着的 */
+  margin-top: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-faint);
+  background: rgba(0, 0, 0, .45);
+  white-space: nowrap;
+}
+.slot-orient.is-rev { color: #ffc9a0; border-color: rgba(240, 140, 80, .45); background: rgba(240, 140, 80, .12); }
+
+.slot:hover .card-front { box-shadow: 0 0 0 2px var(--violet-soft), 0 6px 20px rgba(0, 0, 0, .5); }
+.slot:focus-visible { outline: 2px solid var(--violet-soft); outline-offset: 4px; border-radius: 10px; }
+
+.table-foot { margin: 12px 0 0; font-size: 12px; color: var(--text-faint); line-height: 1.7; }
+
+/* ---------------- 补充牌 ---------------- */
+
+.bonus-row {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--line);
+}
+
+.bonus-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.bonus-controls .field-label { margin: 0; }
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.step-btn {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.step-btn:hover:not(:disabled) { background: var(--bg-raise); color: var(--text); }
+.step-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+.step-value {
+  min-width: 30px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gold-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.step-unit { font-size: 12.5px; color: var(--text-faint); padding-right: 6px; }
+
+.bonus-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.7;
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+}
+.bonus-note strong { color: var(--text-dim); }
+
+/* 补充牌在牌桌下方，用金色虚线框和原牌阵区分开 */
+.slot.is-bonus .card-front {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, .35), 0 4px 14px rgba(0, 0, 0, .4);
+}
+.slot.is-bonus .slot-pos { color: var(--gold); }
+.bonus-tag {
+  display: inline-block;
+  font-size: 9.5px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(201, 162, 39, .18);
+  border: 1px solid rgba(201, 162, 39, .45);
+  color: var(--gold-soft);
+  vertical-align: 1px;
+}
+
+/* ---------------- 解读区 ---------------- */
+
+.reading-placeholder {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  padding: 22px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13.5px;
+}
+.reading-placeholder .rp-title { display: block; font-size: 14px; color: var(--text); margin-bottom: 6px; }
+.reading-placeholder .rp-actions { margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+.reading-loading { padding: 8px 0 4px; }
+.reading-loading .rl-line { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--text-dim); margin-bottom: 10px; }
+.spinner {
+  width: 14px; height: 14px; flex: 0 0 auto;
+  border: 2px solid rgba(108, 92, 231, .3);
+  border-top-color: var(--violet-soft);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+.rl-steps { list-style: none; margin: 14px 0 0; padding: 0; font-size: 12.5px; color: var(--text-faint); }
+.rl-steps li { padding: 3px 0 3px 20px; position: relative; }
+.rl-steps li::before { content: "·"; position: absolute; left: 8px; color: var(--violet-soft); }
+
+.reading-error {
+  border: 1px solid rgba(240, 82, 82, .35);
+  background: rgba(240, 82, 82, .08);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 13.5px;
+  color: #ffb3b3;
+  line-height: 1.7;
+}
+.reading-error strong { color: #ff8b8b; }
+.reading-error .re-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+.verify-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+.verify-bar .vq { font-weight: 600; }
+.verify-bar .vq.ok { color: var(--ok); }
+.verify-bar .vq.warn { color: var(--warn); }
+.verify-bar .vq.bad { color: var(--bad); }
+.verify-bar .vsep { color: var(--line); }
+.verify-bar .vspacer { flex: 1; }
+
+.card-readings { display: flex; flex-direction: column; gap: 12px; }
+
+.card-reading {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+.cr-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 16px;
+  background: var(--bg-raise);
+  border-bottom: 1px solid var(--line-soft);
+}
+.cr-index {
+  display: grid;
+  place-items: center;
+  width: 22px; height: 22px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(108, 92, 231, .3);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ddd6ff;
+}
+.cr-pos { font-size: 13px; font-weight: 600; color: var(--gold-soft); }
+.cr-card { font-size: 13.5px; color: var(--text); }
+.cr-orient {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+.cr-orient.is-rev { color: #ffc9a0; border-color: rgba(240, 140, 80, .45); background: rgba(240, 140, 80, .1); }
+
+.cr-body { padding: 14px 16px; }
+
+/*
+ * 「这张牌的意思」——先讲牌本身，再讲它对你这个问题说明什么。
+ *
+ * 用户的原话：「每张牌是代表什么，是什么意思」「正位就解释正位的意思，
+ * 逆位就解释逆位的意思」。解读是从牌义推出来的，先摆结论再让用户自己
+ * 猜依据，等于把推理链倒过来讲。
+ */
+.cr-meaning {
+  background: rgba(108, 92, 231, .07);
+  border-left: 2px solid rgba(108, 92, 231, .45);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.cr-meaning-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.cr-meaning-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #b9a8ff;
+  letter-spacing: .3px;
+}
+.cr-meaning-core {
+  font-size: 12px;
+  color: var(--gold-soft);
+}
+.cr-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.cr-keyword {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(108, 92, 231, .3);
+  color: var(--text-dim);
+  background: rgba(108, 92, 231, .08);
+}
+.cr-meaning-text {
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--text);
+  margin: 0;
+}
+.cr-meaning-advice {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(108, 92, 231, .18);
+}
+.cr-advice-tag { color: var(--gold-soft); }
+
+/* 页脚的版本标记：看得见就行，不要抢注意力 */
+.foot-build {
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* 「针对你的问题」——模型从牌义推到用户处境的那一步 */
+.cr-own { margin-bottom: 12px; }
+.cr-own-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  margin-bottom: 5px;
+  letter-spacing: .3px;
+}
+
+.cr-quote {
+  font-size: 12.5px;
+  color: #b9b2d8;
+  border-left: 2px solid var(--violet);
+  padding: 2px 0 2px 10px;
+  margin-bottom: 10px;
+  line-height: 1.7;
+}
+.cr-quote.is-bad { border-left-color: var(--bad); color: #ffb3b3; }
+.cr-quote .q-tag { font-size: 11px; color: var(--text-faint); display: block; margin-top: 2px; }
+.cr-quote.is-bad .q-tag { color: #ff8b8b; }
+.cr-text { font-size: 14px; line-height: 1.8; margin: 0 0 10px; }
+.cr-action {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #cfe9d9;
+  background: rgba(74, 217, 145, .08);
+  border: 1px solid rgba(74, 217, 145, .2);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.cr-action .ca-tag { color: var(--ok); font-weight: 600; }
+.cr-missing { font-size: 13px; color: var(--warn); }
+
+/* ---------------- 解读面板的层次 ----------------
+ *
+ * 顺序是刻意的：结论 → 行动 → 逐张牌（折叠）→ 元信息。
+ * 早先的顺序把核对条和铺垫放在最前面，把「到底怎么办」埋到两千多字之后，
+ * 用户的原话是「看着好累好复杂，而且没什么参考价值」。
+ */
+
+/* 结论。整份解读最重要的一块，要一眼看到。 */
+.reading-verdict {
+  border-left: 3px solid var(--violet);
+  background: rgba(108, 92, 231, .09);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+.reading-verdict p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--text);
+}
+
+/* 行动。用户真正会照着做的东西。 */
+.reading-actions-block { margin-bottom: 22px; }
+.reading-actions-block h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ok);
+  margin: 0 0 8px;
+}
+
+/* 牌位列表的标题 */
+.card-readings-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+}
+
+/*
+ * 折叠行。
+ *
+ * .card-reading 从 <div> 换成了 <details>，所以 .cr-head 现在是 <summary>。
+ * summary 默认带一个三角标记（靠 list-style），而且默认 display 是 list-item——
+ * .cr-head 本来就声明了 display: flex，能盖掉后者，但三角要靠 list-style: none
+ * 和 ::-webkit-details-marker 才能去掉。箭头改成自己画：默认那个在各浏览器里
+ * 的长相和位置都不一样。
+ */
+.card-reading > summary.cr-head {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.card-reading > summary.cr-head::-webkit-details-marker { display: none; }
+.card-reading > summary.cr-head::after {
+  content: '▾';
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-faint);
+  transition: transform .15s ease;
+}
+/* 收起时箭头转 90 度指右；同时去掉底部分隔线（下面没有内容了） */
+.card-reading:not([open]) > summary.cr-head::after { transform: rotate(-90deg); }
+.card-reading:not([open]) > summary.cr-head { border-bottom: none; }
+
+/*
+ * 一句话摘要：收起时显示，展开后隐藏（正文里有更详细的内容，不必重复）。
+ *
+ * 单独占一行（flex: 1 1 100%），所以收起状态下每个牌位是两行——
+ * 第一行是序号 / 牌位名 / 牌名 / 朝向，第二行是摘要。
+ * 太长的摘要截断，保证每个牌位高度一致，扫起来才快。
+ */
+.cr-gist {
+  flex: 1 1 100%;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-reading[open] .cr-gist { display: none; }
+.cr-gist-missing { color: var(--text-faint); font-style: italic; }
+
+/*
+ * 「与结论一致，没有额外提示」。
+ *
+ * 这是 prompt 明确允许的诚实留白，不该看起来像一段正经解读——
+ * 弱化它，才不会跟真正有信息的牌位抢注意力。
+ */
+.cr-text.is-no-extra {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* 元信息（贴合度 + 引文核对）：事后核对用，降低存在感 */
+.reading-meta {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.reading-meta .fit-banner { margin-bottom: 12px; }
+
+.actions-list { list-style: none; margin: 0; padding: 0; counter-reset: act; }
+.actions-list li {
+  position: relative;
+  padding: 9px 0 9px 34px;
+  font-size: 14px;
+  line-height: 1.7;
+  border-bottom: 1px dashed var(--line-soft);
+}
+.actions-list li:last-child { border-bottom: none; }
+.actions-list li::before {
+  counter-increment: act;
+  content: counter(act);
+  position: absolute;
+  left: 0; top: 10px;
+  display: grid;
+  place-items: center;
+  width: 21px; height: 21px;
+  border-radius: 50%;
+  background: rgba(201, 162, 39, .18);
+  border: 1px solid rgba(201, 162, 39, .4);
+  color: var(--gold-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.issues-box {
+  border: 1px solid rgba(240, 180, 41, .3);
+  background: rgba(240, 180, 41, .07);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 12.5px;
+  color: #f5d491;
+  margin-top: 14px;
+  line-height: 1.75;
+}
+.issues-box strong { color: var(--warn); }
+.issues-box ul { margin: 8px 0 0; padding-left: 20px; }
+
+.reading-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+/* ---------------- 底部 ---------------- */
+
+.foot {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 20px 50px;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+.foot p { margin: 0 0 8px; }
+.foot strong { color: var(--gold-soft); }
+.foot-dim { font-size: 12px; color: var(--text-faint); }
+
+/* ---------------- 弹窗 ---------------- */
+
+/*
+ * 弹窗要能在「可视区变矮」时自己滚动。
+ *
+ * 原来 .modal 是 fixed + grid 居中，本身不滚动，而 .modal-box 只给了
+ * max-height: 88vh。vh 在 iOS 上按**大视口**算（不含被软键盘、地址栏占掉的
+ * 部分），于是键盘一弹出来，居中的弹窗底部（含「保存」按钮）就被推到可视区
+ * 之外——而 .modal 没有 overflow，整块滚不动，按钮再也够不到，只能关掉重来。
+ * 横屏手机可视高小于约 333px 时同样会这样。
+ *
+ * 现在：.modal 自己可纵向滚动、对齐方式改成从顶部起（start），
+ * 内容高时自然滚，内容矮时靠 margin:auto 仍然居中。
+ */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: start center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+}
+.modal-backdrop { position: absolute; inset: 0; background: rgba(5, 6, 12, .72); backdrop-filter: blur(4px); }
+.modal-box {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  /*
+   * 高度上限用 dvh（动态视口高度），它跟着软键盘和地址栏收缩，
+   * 而 vh 始终按大视口算。老浏览器不认 dvh 就用 vh 兜底。
+   */
+  max-height: 88vh;
+  max-height: 88dvh;
+  /* 从顶部起排时，用自动外边距把矮弹窗推回垂直居中 */
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+  animation: modal-in .18s ease-out;
+}
+.modal-wide { max-width: 760px; }
+.modal-narrow { max-width: 460px; }
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.modal-head h3 { margin: 0; font-size: 15px; color: var(--gold-soft); font-weight: 600; }
+.btn-close {
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.btn-close:hover { background: var(--bg-raise); color: var(--text); }
+
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+
+.test-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.test-result { font-size: 12.5px; color: var(--text-dim); flex: 1; min-width: 140px; }
+.test-result.ok { color: var(--ok); }
+.test-result.bad { color: #ff8b8b; }
+
+/* 历史记录 */
+.history-item {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--bg-soft);
+}
+.hi-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.hi-q { font-size: 13.5px; color: var(--text); font-weight: 600; }
+.hi-time { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+.hi-meta { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+.hi-cards { font-size: 12.5px; color: var(--text-dim); margin-top: 6px; line-height: 1.7; }
+.hi-actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.hi-actions .btn { font-size: 12.5px; padding: 5px 12px; }
+.history-empty { text-align: center; color: var(--text-faint); font-size: 13px; padding: 30px 0; }
+
+/* 牌义弹窗 */
+.cm-card-name { font-size: 17px; font-weight: 700; color: var(--text); }
+.cm-card-en { font-size: 12px; color: var(--text-faint); margin-bottom: 12px; }
+.cm-row { margin-bottom: 14px; }
+.cm-label { font-size: 12px; color: var(--gold-soft); letter-spacing: .4px; display: block; margin-bottom: 5px; }
+.cm-text { font-size: 14px; line-height: 1.8; margin: 0; }
+.cm-kw { display: flex; gap: 6px; flex-wrap: wrap; }
+.cm-kw span {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, .16);
+  border: 1px solid rgba(108, 92, 231, .3);
+  color: #cfc6ff;
+}
+.cm-both { border-top: 1px dashed var(--line); padding-top: 14px; margin-top: 4px; }
+.cm-inactive { opacity: .45; }
+
+/* ---------------- 提示条 ---------------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: #23283c;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 13.5px;
+  box-shadow: var(--shadow);
+  animation: toast-in .2s ease-out;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ---------------- 窄屏 ---------------- */
+
+/*
+ * 分工：牌和牌阵的尺寸由 render.js 的 applyMetrics 算（它知道视口宽度和
+ * 输入方式），这里的媒体查询只管**排布和留白**。
+ *
+ * 这个分工是刻意的。尺寸如果两边都改，就会出现「JS 按 56px 的牌算了坐标、
+ * CSS 却把牌画成 104px」这种错位——早先尺寸有两个来源时正是这个问题。
+ */
+
+@media (max-width: 640px) {
+  html, body { font-size: 14px; }
+  .layout { padding: 12px 10px 32px; gap: 14px; }
+  .panel { padding: 14px 13px; }
+  .topbar { padding: 10px 12px; flex-wrap: wrap; gap: 8px; }
+  .brand-text h1 { font-size: 15px; }
+  .brand-text p { display: none; }
+  .spread-list { grid-template-columns: 1fr; }
+
+  /* 触摸目标：按钮高度不低于 40px，否则手指容易点空 */
+  .btn { min-height: 40px; padding: 9px 16px; }
+  .step-btn { width: 36px; height: 36px; }
+  .deck-chip { padding: 8px 14px; }
+  .example-chip { padding: 7px 12px; }
+
+  /*
+   * 待挑牌区与牌桌：**不要**用负边距去铺满面板宽度。
+   *
+   * 试过 `margin: 0 -13px`（抵消 .panel 的左右内边距），结果是内容直接贴到
+   * 面板边框上，视觉上像两层的边框叠在一起——用户反馈的就是这个。
+   * 保持面板内的正常缩进，让牌的边界和面板边框之间有明确的间距。
+   */
+  .fan-wrap { padding: 8px 6px 6px; }
+  .table-wrap { padding: 8px 6px; }
+
+  /* 解读卡片的内边距收紧一点，窄屏上文字更宽 */
+  .card-reading { padding: 12px 13px; }
+
+  /* 弹窗在小屏上贴边显示 */
+  .modal-box { width: calc(100vw - 20px); max-height: 88vh; padding: 16px; }
+}
+
+/* 很窄的屏（老机型、分屏模式）再压一档 */
+@media (max-width: 380px) {
+  .layout { padding: 10px 8px 28px; }
+  .panel { padding: 12px 11px; }
+  .brand-text h1 { font-size: 14px; }
+  .topbar-actions { gap: 6px; }
+}
+
+/*
+ * 横屏手机：高度紧张，把顶部那一块压扁，把纵向空间让给牌桌和待挑牌区。
+ */
+@media (max-height: 500px) and (orientation: landscape) {
+  .topbar { padding: 8px 12px; }
+  .brand-text h1 { font-size: 14px; }
+  .brand-text p { display: none; }
+  .layout { padding: 10px 10px 24px; gap: 12px; }
+}
+
+/* ---------------- 减少动效 ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * 关掉入场动画，让牌直接显示成正面。
+   *
+   * 牌背必须显式藏掉：它平时靠 back-gone 这个动画淡出，动画一关就永远盖在
+   * 牌面上，牌就成了一片背面。
+   */
+  .card-front { animation: none; }
+  .card-back { animation: none; display: none; }
+  .btn-draw.is-shuffling .draw-icon { animation: none; }
+  .spinner { animation: none; border-top-color: var(--violet); }
+}

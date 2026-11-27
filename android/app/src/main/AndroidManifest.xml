@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  塔罗牌抽牌与 AI 解读
+
+  几个必须写对的属性，每条都有理由：
+
+  · INTERNET 权限 —— 解读要调用户自己填的接口（DeepSeek / OpenAI / 本地 Ollama）。
+    没有它会直接抛 SecurityException，而报错信息不会告诉用户是权限问题。
+
+  · usesCleartextTraffic="true" —— 允许明文 http。
+    本地 Ollama 的地址是 http://192.168.x.x:11434/v1，而 Android 9 起默认禁止
+    明文流量，不显式打开的话请求会被系统拦掉，用户只看到「连不上」。
+    （这和 MainActivity 里的 MIXED_CONTENT_ALWAYS_ALLOW 是两件事：
+     前者管 Android 系统的网络策略，后者管 WebView 的混合内容策略，都要开。）
+
+  · configChanges="orientation|screenSize|keyboardHidden" —— 旋转屏幕时不重建 Activity。
+    重建会丢掉 WebView 里的状态（正在挑的牌、已生成的解读），
+    而这个应用是纵向为主的单页，让它跟窗口尺寸变化自适应就好
+    （页面本身有 resize 监听，会重算牌桌尺寸）。
+
+  · exported="true" —— 有 LAUNCHER intent-filter 的 Activity 必须显式声明，
+    Android 12+ 不写会装不上。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.tarot.app">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 按钮震动。navigator.vibrate() 在 WebView 里要靠这条权限才生效：
+         缺了它调用不会报错，只是安静地什么都不做，很难查。 -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:allowBackup="true"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
+        android:hardwareAccelerated="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name="com.tarot.app.MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>塔罗牌抽牌与 AI 解读</title>
+<!--
+  资源和脚本都带 ?v= 版本号。
+
+  这是为了 file:// 场景：浏览器对本地文件也会缓存，改了 styles.css 之后
+  直接刷新可能拿到的还是旧样式，表现为「明明改了却没生效」，很容易误判成
+  代码没写对。改完样式或脚本后，把下面所有版本号 +1 就能确保重新加载。
+-->
+<link rel="stylesheet" href="styles.css?v=62">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">✦</span>
+    <div class="brand-text">
+      <h1>塔罗牌抽牌与 AI 解读</h1>
+      <p>78 张韦特牌 · 解读用你自己配置的模型</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span class="rng-badge" id="rngBadge" title="随机源状态">检查随机源…</span>
+    <button type="button" class="btn btn-ghost" id="btnHistory">历史记录</button>
+    <button type="button" class="btn btn-ghost" id="btnSettings">⚙ 接口设置</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ============ 提问与抽牌 ============ -->
+  <section class="panel panel-ask" id="panelAsk">
+    <div class="panel-head">
+      <h2>1 · 提出你的问题</h2>
+    </div>
+
+    <label class="field">
+      <!--
+        这里原来还有一行「你想问什么？」。标题已经写了「提出你的问题」，
+        再问一遍只是同一句话出现两次，删掉之后输入框和标题贴得更近。
+      -->
+      <textarea id="question" rows="3"
+        placeholder="例如：我和他现在的状态，我该不该主动联系他？"></textarea>
+      <span class="field-hint">写具体一点，解读会更贴。也可以留空。</span>
+    </label>
+
+    <p class="question-quality" id="questionQuality" hidden></p>
+
+    <div class="examples">
+      <span class="examples-label">没想好？点一个试试：</span>
+      <div class="example-list" id="exampleList"></div>
+    </div>
+  </section>
+
+  <!-- ============ 牌阵选择 ============ -->
+  <section class="panel panel-spread">
+    <div class="panel-head">
+      <h2>2 · 选牌阵</h2>
+      <span class="panel-sub" id="spreadCount"></span>
+    </div>
+    <!--
+      这里原来有一行 #spreadNote：「这套牌阵要抽 N 张。先挑的牌落在第 1 个
+      位置，所以挑之前先看清每个位置在问什么。」——上面 #spreadCount 已经
+      写了「当前：单张牌 · 1 张」，牌阵卡片上也各自标了张数，同一件事说了
+      三遍。删掉。
+    -->
+    <div class="spread-list" id="spreadList"></div>
+
+    <div class="deck-row">
+      <span class="field-label">牌库</span>
+      <div class="deck-options" id="deckOptions"></div>
+    </div>
+
+    <div class="draw-row">
+      <button type="button" class="btn btn-primary btn-draw" id="btnDraw">
+        <span class="draw-icon">✦</span>
+        <span class="draw-label" id="btnDrawText">洗牌</span>
+      </button>
+    </div>
+    <p class="draw-note">
+      系统加密随机洗牌，牌背面朝上排开，<strong>由你自己点选</strong>——点哪张都不泄露牌面。
+    </p>
+  </section>
+
+  <!-- ============ 自己挑牌 ============ -->
+  <section class="panel panel-fan" id="panelFan" hidden>
+    <div class="panel-head">
+      <h2>3 · 自己挑牌</h2>
+      <span class="panel-sub" id="fanSub"></span>
+    </div>
+
+    <p class="fan-prompt" id="fanPrompt"></p>
+    <div class="fan-picked" id="fanPicked"></div>
+
+    <div class="fan-wrap">
+      <div class="fan-surface" id="fanSurface"></div>
+    </div>
+
+    <div class="fan-actions">
+      <button type="button" class="btn btn-primary" id="btnFanDone" hidden>挑够了，收起来</button>
+      <span class="field-hint">已经挑走的会从牌区里消失。</span>
+    </div>
+  </section>
+
+  <!-- ============ 牌桌 ============ -->
+  <section class="panel panel-table" id="panelTable" hidden>
+    <div class="panel-head">
+      <h2>4 · 你抽到的牌</h2>
+      <span class="panel-sub" id="tableSub"></span>
+    </div>
+    <div class="table-wrap">
+      <div class="table-surface" id="tableSurface"></div>
+    </div>
+    <p class="table-foot" id="tableFoot"></p>
+
+    <div class="bonus-row">
+      <div class="bonus-controls">
+        <span class="field-label">看完之后想再补几张？</span>
+        <div class="stepper">
+          <button type="button" class="step-btn" id="btnBonusMinus" aria-label="减少">−</button>
+          <span class="step-value" id="bonusCount">1</span>
+          <button type="button" class="step-btn" id="btnBonusPlus" aria-label="增加">+</button>
+          <span class="step-unit">张</span>
+        </div>
+        <button type="button" class="btn btn-primary" id="btnDrawBonus">系统替我抽</button>
+        <button type="button" class="btn btn-ghost" id="btnBonusPick">自己挑</button>
+      </div>
+      <p class="bonus-note" id="bonusNote">
+        从同一副已洗好的牌里继续抽，不放回——不会和桌上已有的牌重复。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ AI 解读 ============ -->
+  <section class="panel panel-reading" id="panelReading" hidden>
+    <div class="panel-head">
+      <h2>5 · AI 解读</h2>
+      <span class="panel-sub" id="readingSub"></span>
+    </div>
+    <div id="readingBody"></div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <p>
+    塔罗牌是随机抽出的，它不预测未来。这个工具的价值在于：<strong>换一组陌生的符号，帮你看清自己已经在想的事</strong>。
+    抽牌与牌义全部在本机完成，只有你主动点「生成解读」时，牌面与问题才会发给你自己配置的模型。
+  </p>
+  <!--
+    版本号放在这里，是为了能一眼确认「浏览器加载的到底是哪一版」。
+    加它的原因很实际：改完代码后手机/浏览器常常还在跑缓存里的旧 JS，
+    于是一个早就修好的 bug 看起来还在，白查半天。
+    报问题时把这一行一起截上，就能立刻排除「没更新」这个可能。
+  -->
+  <p class="foot-dim foot-build">
+    <span id="buildStamp">版本读取中…</span>
+  </p>
+</footer>
+
+<!-- ============ 接口设置弹窗 ============ -->
+<div class="modal" id="settingsModal" hidden>
+  <div class="modal-backdrop" data-close="settings"></div>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>接口设置</h3>
+      <button type="button" class="btn-close" data-close="settings" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <label class="field">
+        <span class="field-label">服务预设</span>
+        <select id="providerSelect"></select>
+        <span class="field-hint" id="providerNote"></span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">接口地址（Base URL）</span>
+        <input type="text" id="baseUrl" placeholder="https://api.deepseek.com/v1" spellcheck="false">
+      </label>
+
+      <label class="field">
+        <span class="field-label">模型名</span>
+        <input type="text" id="model" placeholder="deepseek-chat" spellcheck="false">
+      </label>
+
+      <label class="field">
+        <span class="field-label">API Key</span>
+        <input type="password" id="apiKey" placeholder="sk-..." spellcheck="false" autocomplete="off">
+        <span class="field-hint">只存在你浏览器的 localStorage 里，不会上传到任何地方。本机 Ollama 可以留空。</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">温度（0 - 1.5）</span>
+        <input type="number" id="temperature" min="0" max="1.5" step="0.1" value="0.8">
+        <span class="field-hint">越高解读越有联想力，越低越稳定。默认 0.8。</span>
+      </label>
+
+      <div class="field">
+        <span class="field-label">按钮震动</span>
+        <label class="check-row" for="hapticToggle">
+          <input type="checkbox" id="hapticToggle" checked>
+          <span>抽牌、挑牌时震一下</span>
+        </label>
+        <span class="field-hint">只在手机上生效。桌面浏览器没有震动马达，勾了也不会响。</span>
+      </div>
+
+      <div class="test-row">
+        <button type="button" class="btn btn-ghost" id="btnTest">测试连通性</button>
+        <span class="test-result" id="testResult"></span>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" data-close="settings">取消</button>
+      <button type="button" class="btn btn-primary" id="btnSaveSettings">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 历史记录弹窗 ============ -->
+<div class="modal" id="historyModal" hidden>
+  <div class="modal-backdrop" data-close="history"></div>
+  <div class="modal-box modal-wide">
+    <div class="modal-head">
+      <h3>历史记录</h3>
+      <button type="button" class="btn-close" data-close="history" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="field-hint">
+        只存在这台设备的浏览器里，不会上传。生成过解读的记录会连解读一起存下来，
+        标着「含解读」，点「重新载入」就能翻回去。
+      </p>
+      <div id="historyList"></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-danger-ghost" id="btnClearHistory">清空全部</button>
+      <button type="button" class="btn btn-ghost" data-close="history">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 单张牌详情弹窗 ============ -->
+<div class="modal" id="cardModal" hidden>
+  <div class="modal-backdrop" data-close="card"></div>
+  <div class="modal-box modal-narrow">
+    <div class="modal-head">
+      <h3 id="cardModalTitle">牌义</h3>
+      <button type="button" class="btn-close" data-close="card" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body" id="cardModalBody"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost" id="btnFlipCard">翻转正逆位</button>
+      <button type="button" class="btn btn-primary" data-close="card">知道了</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/random.js?v=62"></script>
+<script src="js/cards-major.js?v=62"></script>
+<script src="js/cards-minor.js?v=62"></script>
+<script src="js/cards.js?v=62"></script>
+<script src="js/spreads.js?v=62"></script>
+<script src="js/engine.js?v=62"></script>
+<script src="js/llm.js?v=62"></script>
+<script src="js/render.js?v=62"></script>
+<script src="js/app.js?v=62"></script>
+</body>
+</html>

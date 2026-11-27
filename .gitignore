@@ -1,0 +1,39 @@
+# ── 工具链：约 1.2 GB，绝不入库 ─────────────────────────────
+# 重新生成：node android-setup-download.js
+#           node android-setup-sdkdl.js
+#           powershell -ExecutionPolicy Bypass -File android-setup-unpack.ps1
+.toolchain/
+
+# ── Android 构建产物 ─────────────────────────────────────────
+android/build/
+
+# 每次打包由 android-build.ps1 从仓库根目录同步过来的副本
+android/app/src/main/assets/
+
+# v4 签名文件，安装不需要
+*.idsig
+
+# ── 打包产物 ─────────────────────────────────────────────────
+# 官网下载走 GitHub Releases，仓库里不存二进制。
+# 想直接把 APK 放进来就删掉下面这行。
+*.apk
+
+# ── 生成物 ───────────────────────────────────────────────────
+# node preview.js 的输出
+preview.html
+*.log
+
+# ── 系统垃圾 ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Node（本项目零依赖，但别让别人的本地试验污染仓库）─────
+node_modules/
+package-lock.json
+
+# ── 注意：以下目录刻意保留，不是漏了 ────────────────────────
+# .domtest/      domino 2.1.8，verify-browser.js / verify-layout.js 的运行时依赖
+#                （956 KB，BSD-2-Clause，LICENSE 随包）
+# tarot-icon.png make-android-icons.py 的输入
+# tarot.ico      Windows 桌面快捷方式的图标
