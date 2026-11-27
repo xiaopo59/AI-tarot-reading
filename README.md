@@ -6,6 +6,9 @@
 
 双击 `index.html` 就能用，不需要装任何东西、不需要起服务器。
 
+**手机上想直接装 App？** 仓库根目录有现成的 **[`tarot.apk`](tarot.apk)**——288 KB，
+Android 7.0 以上，装完就能用。详见[「手机上怎么用」](#手机上怎么用)。
+
 ---
 
 ## 用之前要知道的三件事
@@ -380,7 +383,7 @@ actions[]   2-3 条可以真的去做的事
 |---|---|
 | 浏览器 | 任何支持 `crypto.getRandomValues` 的——Chrome 11 / Edge 79 / Firefox 21 / Safari 6.1 以后都可以 |
 | 网络 | 只有「生成解读」「测试连通性」需要联网，抽牌和牌义全离线 |
-| Node.js | **不需要**。只有跑测试、打包 APK 时才用得上 |
+| Node.js | **不需要**。只有跑测试、自己重新打 APK 时才用得上（仓库里已有打好包的）|
 | 安装 | **不需要**。双击 `index.html` 就能用 |
 
 **没有 `crypto.getRandomValues` 会怎样**：页面不会静默退回 `Math.random()`，
@@ -420,9 +423,35 @@ $sc.Save()
 
 ## 手机上怎么用
 
-界面是响应式的，手机浏览器直接打开就能用。**也可以打包成 Android APK 装到手机上**，
-见 [`android/README.md`](android/README.md)。仓库里不存二进制——去
-[Releases](../../releases) 下签好的 APK，或者照那份文档自己打一个（产物约 280 KB）。
+界面是响应式的，手机浏览器直接打开就能用。**也可以直接装 Android App**。
+
+### 直接装（不用搭环境）
+
+安装包就在仓库根目录：**[`tarot.apk`](tarot.apk)** — 288 KB
+
+| 项目 | 值 |
+|---|---|
+| 版本 | **3.4**（versionCode 17）。装好后页脚显示「版本 3.4 · 资源 v62」 |
+| 最低系统 | Android 7.0（API 24） |
+| 权限 | 只有 `INTERNET` 和 `VIBRATE`，没有存储、定位、相机 |
+| 签名 | debug 证书，v2 + v3 方案 |
+
+装的时候系统会拦一下「未知来源应用」，去设置里允许一次就行——这是所有非应用商店
+安装包的必经步骤，不是这个包有问题。
+
+**数据在哪**：和网页版完全一样。配置（含 API Key）和历史记录都写在 WebView 的
+localStorage 里，属于应用私有目录，卸载即清空，不会同步到任何地方。
+
+**它是构建产物，不会自己跟着源码更新。** 想拿最新版就自己打一次：
+
+```bash
+cd tarot
+powershell -ExecutionPolicy Bypass -File android-build.ps1
+```
+
+需要 Android SDK + JDK，第一次要下约 700 MB，详见
+[`android/README.md`](android/README.md)。打之前记得改 `android-build.ps1`
+里的 `--version-code`，否则新包装不上去（数值必须比旧的大）。
 
 几个关键差别：
 
@@ -460,14 +489,21 @@ $sc.Save()
 
 ### 关于打包成 App
 
-想做成 APK / iOS 安装包，需要 Android SDK + JDK（约 700MB~1GB）。
+**已经打好了。** `tarot.apk` 就在仓库根目录，直接装，不用搭任何环境——
+见[「手机上怎么用」](#手机上怎么用)。
+
+想自己重新打，才需要 Android SDK + JDK（约 700 MB ~ 1 GB），流程见
+[`android/README.md`](android/README.md)。这是个纯手工工具链：`aapt2` → `javac` →
+`d8` → `zipalign` → `apksigner`，不依赖 Gradle。
 
 **一个坦诚的限制**：打包脚本能验证的只有「编译成功、包结构完整、资源打进去了」。
 「装到手机上能打开、能抽牌」得由你装上后确认——构建环境里既没有 Android 设备，
-也没有模拟器。CI 能跑六套逻辑测试，跑不了这一条。
+也没有模拟器。六套逻辑测试跑得再全，也覆盖不到这一条。
 
 所以建议的顺序是：**先在手机浏览器里试，确认交互顺手了再打包**。把一个没在真机上
 验证过的交互固化进安装包，改起来更费事。
+
+iOS 没有做。打 iOS 包需要 Mac + Xcode，这个仓库里只有 Android 的构建脚本。
 
 ---
 
